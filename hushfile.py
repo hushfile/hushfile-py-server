@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.3
+#!/usr/bin/env python3
 import cherrypy
 from cherrypy.lib.static import serve_file
 import os.path
