@@ -1,0 +1,9 @@
+#!/bin/sh
+
+set -e
+
+cd `dirname $0`
+
+export HUSHFILE_DATA_PATH='/data/hushfile-py-server/'
+
+python hushfile.py
