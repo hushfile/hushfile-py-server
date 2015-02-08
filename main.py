@@ -3,14 +3,14 @@ from flask import Flask, request, jsonify
 import json
 import os
 import tempfile
-from werkzeug.exceptions import BadRequest
+from werkzeug.exceptions import (BadRequest,
+                                 NotFound)
 
 app = Flask(__name__)
 
-abspath = os.path.abspath(os.path.basename(__file__))
+abspath = os.path.abspath(os.path.dirname(__file__))
 DATA_PATH = os.environ.get('HUSHFILE_DATA_PATH',
                            os.path.join(abspath, 'files'))
-
 DEFAULT_FILE_EXPIRATION = os.environ.get('HUSHFILE_DEFAULT_FILE_EXPIRATION',
                                          60*60*24*30)  # 30 days
 FILEID_LENGTH = 15
@@ -101,7 +101,8 @@ def post_file():
 
 
 def assert_file_exists(id):
-    return not_implemented()
+    if not os.path.isdir(os.path.join(DATA_PATH, id)):
+        raise NotFound("The requested file could not be found")
 
 
 @app.route('/api/file/<id>', methods=['PUT'])
@@ -111,12 +112,13 @@ def put_file(id):
 
 @app.route('/api/file/<id>/exists', methods=['GET'])
 def get_file_exists(id):
-    assert_file_exists()
+    assert_file_exists(id)
     return ""
 
 
 @app.route('/api/file/<id>/info', methods=['GET'])
 def get_file_info(id):
+    assert_file_exists(id)
     '''Return public information about the file'''
     return not_implemented()
 
@@ -142,6 +144,8 @@ def get_serverinfo():
     return not_implemented()
 
 if __name__ == "__main__":
-    assert os.path.exists(DATA_PATH) and os.path.isdir(DATA_PATH)
     app.debug = True
+    app.logger.debug("Starting with DATA_PATH=%s", DATA_PATH)
+    assert os.path.exists(DATA_PATH) and os.path.isdir(DATA_PATH)
+
     app.run()

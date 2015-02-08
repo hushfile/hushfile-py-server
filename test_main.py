@@ -12,7 +12,7 @@ json_header = {
 }
 
 
-class TestHushfile(unittest.TestCase):
+class TestMain(unittest.TestCase):
     tmp_dir = None
 
     def setUp(self):
