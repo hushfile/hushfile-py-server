@@ -6,4 +6,4 @@ cd `dirname $0`
 
 export HUSHFILE_DATA_PATH='/data/hushfile-py-server/'
 
-python hushfile.py
+python main.py
