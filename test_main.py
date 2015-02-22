@@ -11,9 +11,15 @@ json_header = {
     'Content-type': 'application/json',
 }
 
+here = abspath = os.path.abspath(os.path.dirname(__file__))
+files = os.path.join(here, 'files')
+
 
 class TestMain(unittest.TestCase):
     tmp_dir = None
+
+    def status_code(self, resp, expect):
+        self.assertEqual(resp.status_code, expect)
 
     def setUp(self):
         main.app.config['DEBUG'] = True
@@ -56,3 +62,13 @@ class TestMain(unittest.TestCase):
         }
         resp = self.app.post('/api/file', data=payload)
         self.assertEqual(resp.status_code, 400)
+
+    def test_api_get_serverinfo(self):
+        config_location = os.path.join(files, 'config.json')
+
+        expected = json.load(open(config_location))
+        with patch('main.CONFIGURATION_LOCATION', config_location):
+            resp = self.app.get('/api/serverinfo')
+        self.status_code(resp, 200)
+
+        assert json.loads(resp.get_data()) == expected

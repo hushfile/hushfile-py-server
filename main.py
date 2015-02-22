@@ -9,6 +9,10 @@ from werkzeug.exceptions import (BadRequest,
 app = Flask(__name__)
 
 abspath = os.path.abspath(os.path.dirname(__file__))
+CONFIGURATION_LOCATION = os.environ.get(
+    'HUSHFILE_CONFIGURATION_LOCATION',
+    os.path.join(abspath, 'config.json')
+)
 DATA_PATH = os.environ.get('HUSHFILE_DATA_PATH',
                            os.path.join(abspath, 'files'))
 DEFAULT_FILE_EXPIRATION = os.environ.get('HUSHFILE_DEFAULT_FILE_EXPIRATION',
@@ -141,7 +145,7 @@ def delete_file(id, deletepassword):
 
 @app.route('/api/serverinfo', methods=['GET'])
 def get_serverinfo():
-    return not_implemented()
+    return jsonify(json.load(open(CONFIGURATION_LOCATION)))
 
 if __name__ == "__main__":
     app.debug = True
