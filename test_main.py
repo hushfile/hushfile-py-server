@@ -50,20 +50,20 @@ class TestMain(unittest.TestCase):
 
                 # TODO: Test file contents
 
-    def test_api_upload_json(self):
+    def test_post_file_json(self):
         self.api_upload_success(wrap_func=json.dumps, headers=json_header)
 
-    def test_api_upload_multipart(self):
+    def test_post_file_multipart(self):
         self.api_upload_success()
 
-    def test_api_upload_no_meta(self):
+    def test_post_file_no_meta(self):
         payload = {
             'mac': '1234'
         }
         resp = self.app.post('/api/file', data=payload)
         self.assertEqual(resp.status_code, 400)
 
-    def test_api_get_serverinfo(self):
+    def test_get_serverinfo(self):
         config_location = os.path.join(files, 'config.json')
 
         expected = json.load(open(config_location))
