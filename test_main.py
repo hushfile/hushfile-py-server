@@ -29,6 +29,11 @@ class TestMain(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp_dir)
 
+    def setup_mockfile(self, file_id):
+        filepath = os.path.join(self.tmp_dir, file_id)
+        os.makedirs(filepath)
+        return filepath
+
     def api_upload_success(self, wrap_func=lambda x: x, headers={}):
         payload = {
             'metadata': b64encode(os.urandom(42)),
@@ -56,13 +61,6 @@ class TestMain(unittest.TestCase):
     def test_post_file_multipart(self):
         self.api_upload_success()
 
-    def test_post_file_no_meta(self):
-        payload = {
-            'mac': '1234'
-        }
-        resp = self.app.post('/api/file', data=payload)
-        self.assertEqual(resp.status_code, 400)
-
     def test_get_serverinfo(self):
         config_location = os.path.join(files, 'config.json')
 
@@ -72,3 +70,30 @@ class TestMain(unittest.TestCase):
         self.status_code(resp, 200)
 
         assert json.loads(resp.get_data()) == expected
+
+    def test_put_metadata_success(self):
+        with patch('main.DATA_PATH', self.tmp_dir):
+            filepath = self.setup_mockfile('foobar')
+            payload = {
+                'uploadpassword': '1234',
+                'metadata': 'encryptedtexthere'
+            }
+            resp = self.app.put('/api/file/foobar/metadata', data=payload)
+            self.status_code(resp, 200)
+
+            with open(os.path.join(filepath, 'metadata.json')) as f:
+                j = json.load(f)
+                assert 'uploadpassword' not in j
+
+    def test_put_metadata_not_exists(self):
+        resp = self.app.put('/api/file/fewfsadgsg/metadata', data={})
+        self.status_code(resp, 404)
+
+    def test_post_file_no_meta(self):
+        with patch('main.DATA_PATH', self.tmp_dir):
+            self.setup_mockfile('1234')
+            payload = {
+                'uploadpassword': '1234',
+            }
+            resp = self.app.put('/api/file/1234/metadata', data=payload)
+            self.assertEqual(resp.status_code, 400)

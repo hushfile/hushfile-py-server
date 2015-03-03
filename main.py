@@ -43,13 +43,6 @@ def read_metadata_file(filepath):
     return json.loads(content)
 
 
-def write_metadata_file(filepath, metadata):
-    metadata_file = os.path.join(filepath, metadata_filename)
-
-    with open(metadata_file, 'wb') as f:
-        f.write(json.dumps(metadata))
-
-
 def read_properties_file(filepath):
     with open(os.path.join(filepath, properties_filename), 'r') as f:
         content = f.read()
@@ -75,17 +68,7 @@ def not_implemented():
 def post_file():
     payload = parse_request_data(request)
 
-    if not payload['metadata']:
-        app.logger.error("Parsing of request failed")
-        raise BadRequest()
-
     fileid, filepath = create_new_file(DATA_PATH)
-
-    write_metadata_file(filepath,
-                        {
-                            'metadata': payload['metadata'],
-                            'mac': payload['mac']
-                        })
 
     uploadpassword = generate_password()
     properties = {
@@ -104,14 +87,32 @@ def post_file():
     })
 
 
-def assert_file_exists(id):
-    if not os.path.isdir(os.path.join(DATA_PATH, id)):
+def assert_file_exists(file_id):
+    if not os.path.isdir(os.path.join(DATA_PATH, file_id)):
         raise NotFound("The requested file could not be found")
+    app.logger.info("Found file %s", file_id)
 
 
-@app.route('/api/file/<id>', methods=['PUT'])
-def put_file(id):
-    return not_implemented()
+@app.route('/api/file/<string:id>/metadata', methods=['PUT'])
+def put_file_metadata(id):
+    assert_file_exists(id)
+
+    payload = parse_request_data(request)
+
+    if 'metadata' not in payload:
+        app.logger.error("Parsing of request failed")
+        raise BadRequest()
+
+    metadata = payload.copy()
+    del metadata['uploadpassword']
+
+    metadata_file = os.path.join(DATA_PATH, id, metadata_filename)
+
+    app.logger.debug("Writing metadata to %s", metadata_file)
+    with open(metadata_file, 'wb') as f:
+        json.dump(metadata, f)
+
+    return jsonify({})
 
 
 @app.route('/api/file/<id>/exists', methods=['GET'])
