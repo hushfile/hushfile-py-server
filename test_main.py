@@ -103,3 +103,17 @@ class TestMain(unittest.TestCase):
             self.assertEqual(resp.status_code, 400)
             metadata_file = os.path.join(filepath, 'metadata.json')
             assert not os.path.exists(metadata_file)
+
+    def test_put_file_unauthorized(self):
+        with patch('main.DATA_PATH', self.tmp_dir):
+            filepath = self.setup_mockfile('weggkgelg')
+            payload = {
+                'uploadpassword': '2wefegf',
+                'metadata': 'encryptedtexthere'
+            }
+
+            resp = self.app.put('/api/file/weggkgelg/metadata', data=payload)
+            self.status_code(resp, 401)
+
+            metadata_file = os.path.join(filepath, 'metadata.json')
+            assert not os.path.exists(metadata_file)
