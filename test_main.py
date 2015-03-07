@@ -29,9 +29,13 @@ class TestMain(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp_dir)
 
-    def setup_mockfile(self, file_id):
+    def setup_mockfile(self, file_id, uploadpassword='1234'):
         filepath = os.path.join(self.tmp_dir, file_id)
         os.makedirs(filepath)
+        with open(os.path.join(filepath, 'properties.json'), 'w') as f:
+            json.dump({
+                'uploadpassword': uploadpassword
+            }, f)
         return filepath
 
     def api_upload_success(self, wrap_func=lambda x: x, headers={}):

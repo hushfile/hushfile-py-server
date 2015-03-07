@@ -4,7 +4,9 @@ import json
 import os
 import tempfile
 from werkzeug.exceptions import (BadRequest,
-                                 NotFound)
+                                 NotFound,
+                                 Unauthorized)
+from werkzeug.security import safe_str_cmp
 
 app = Flask(__name__)
 
@@ -43,10 +45,10 @@ def read_metadata_file(filepath):
     return json.loads(content)
 
 
-def read_properties_file(filepath):
-    with open(os.path.join(filepath, properties_filename), 'r') as f:
-        content = f.read()
-    return json.loads(content)
+def read_properties_file(file_id):
+    file_path = os.path.join(DATA_PATH, file_id, properties_filename)
+    with open(file_path, 'r') as f:
+        return json.load(f)
 
 
 def write_properties_file(filepath, properties):
@@ -93,10 +95,25 @@ def assert_file_exists(file_id):
     app.logger.info("Found file %s", file_id)
 
 
-@app.route('/api/file/<string:id>/metadata', methods=['PUT'])
-def put_file_metadata(id):
-    assert_file_exists(id)
+def require_uploadpassword(f):
+    def check_uploadpassword(*args, **kwargs):
+        assert_file_exists(kwargs['id'])
 
+        properties = read_properties_file(kwargs['id'])
+        payload = parse_request_data(request)
+        comparison = safe_str_cmp(
+            payload['uploadpassword'],
+            properties['uploadpassword'])
+
+        if not comparison:
+            raise Unauthorized()
+        return f(*args, **kwargs)
+    return check_uploadpassword
+
+
+@app.route('/api/file/<string:id>/metadata', methods=['PUT'])
+@require_uploadpassword
+def put_file_metadata(id):
     payload = parse_request_data(request)
 
     if 'metadata' not in payload:
