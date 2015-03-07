@@ -1,10 +1,13 @@
 from base64 import b64encode
-from flask import Flask, request, jsonify
+from flask import Flask, g, request, jsonify
+from functools import wraps
 import json
 import os
 import tempfile
 from werkzeug.exceptions import (BadRequest,
-                                 NotFound)
+                                 NotFound,
+                                 Unauthorized)
+from werkzeug.security import safe_str_cmp
 
 app = Flask(__name__)
 
@@ -43,17 +46,10 @@ def read_metadata_file(filepath):
     return json.loads(content)
 
 
-def write_metadata_file(filepath, metadata):
-    metadata_file = os.path.join(filepath, metadata_filename)
-
-    with open(metadata_file, 'wb') as f:
-        f.write(json.dumps(metadata))
-
-
-def read_properties_file(filepath):
-    with open(os.path.join(filepath, properties_filename), 'r') as f:
-        content = f.read()
-    return json.loads(content)
+def read_properties_file(file_id):
+    file_path = os.path.join(DATA_PATH, file_id, properties_filename)
+    with open(file_path, 'r') as f:
+        return json.load(f)
 
 
 def write_properties_file(filepath, properties):
@@ -63,8 +59,10 @@ def write_properties_file(filepath, properties):
         f.write(json.dumps(properties))
 
 
-def parse_request_data(request):
-    return request.get_json() or request.form
+@app.before_request
+def parse_request_data():
+    if request.method in ['POST', 'PUT']:
+        g.payload = request.get_json() or request.form
 
 
 def not_implemented():
@@ -73,19 +71,9 @@ def not_implemented():
 
 @app.route('/api/file', methods=['POST'])
 def post_file():
-    payload = parse_request_data(request)
-
-    if not payload['metadata']:
-        app.logger.error("Parsing of request failed")
-        raise BadRequest()
+    payload = g.payload
 
     fileid, filepath = create_new_file(DATA_PATH)
-
-    write_metadata_file(filepath,
-                        {
-                            'metadata': payload['metadata'],
-                            'mac': payload['mac']
-                        })
 
     uploadpassword = generate_password()
     properties = {
@@ -104,25 +92,63 @@ def post_file():
     })
 
 
-def assert_file_exists(id):
-    if not os.path.isdir(os.path.join(DATA_PATH, id)):
-        raise NotFound("The requested file could not be found")
+def require_file_exists(f):
+    @wraps(f)
+    def check_file_exists(*args, **kwargs):
+        dirname = os.path.join(DATA_PATH, kwargs['id'])
+        if not os.path.isdir(dirname):
+            raise NotFound("The requested file could not be found")
+        app.logger.info("Found file %s", kwargs['id'])
+        return f(*args, **kwargs)
+    return check_file_exists
 
 
-@app.route('/api/file/<id>', methods=['PUT'])
-def put_file(id):
-    return not_implemented()
+def require_uploadpassword(f):
+    @require_file_exists
+    @wraps(f)
+    def check_uploadpassword(*args, **kwargs):
+        properties = read_properties_file(kwargs['id'])
+        payload = g.payload
+        comparison = safe_str_cmp(
+            payload['uploadpassword'],
+            properties['uploadpassword'])
+
+        if not comparison:
+            raise Unauthorized()
+        return f(*args, **kwargs)
+    return check_uploadpassword
+
+
+@app.route('/api/file/<string:id>/metadata', methods=['PUT'])
+@require_uploadpassword
+def put_file_metadata(id):
+    payload = g.payload
+
+    if 'metadata' not in payload:
+        app.logger.error("Parsing of request failed")
+        raise BadRequest()
+
+    metadata = payload.copy()
+    del metadata['uploadpassword']
+
+    metadata_file = os.path.join(DATA_PATH, id, metadata_filename)
+
+    app.logger.debug("Writing metadata to %s", metadata_file)
+    with open(metadata_file, 'wb') as f:
+        json.dump(metadata, f)
+
+    return jsonify({})
 
 
 @app.route('/api/file/<id>/exists', methods=['GET'])
+@require_file_exists
 def get_file_exists(id):
-    assert_file_exists(id)
     return ""
 
 
 @app.route('/api/file/<id>/info', methods=['GET'])
+@require_file_exists
 def get_file_info(id):
-    assert_file_exists(id)
     '''Return public information about the file'''
     return not_implemented()
 
