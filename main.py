@@ -1,9 +1,11 @@
 from base64 import b64encode
+from datetime import datetime, timedelta
 from flask import Flask, g, request, jsonify
 from functools import wraps
 import json
 import os
 import tempfile
+import time
 from werkzeug.exceptions import (BadRequest,
                                  NotFound,
                                  Unauthorized)
@@ -37,7 +39,6 @@ def generate_password(length=40):
 
 
 def create_new_file():
-    print(g.config['data_path'])
     filepath = tempfile.mkdtemp(dir=g.config['data_path'])
     fileid = os.path.basename(filepath)
 
@@ -92,21 +93,33 @@ def post_file():
 
     fileid, filepath = create_new_file()
 
-    uploadpassword = generate_password()
+    upload_key = generate_password()
+    delete_key = generate_password()
+
+    expires = payload.get('expires', None)
+
+    if not expires:
+        dt_expires = (
+            datetime.utcnow() + timedelta(seconds=DEFAULT_FILE_EXPIRATION))
+
+        expires = int(time.mktime(dt_expires.timetuple()))
+
     properties = {
-        'uploadpassword': uploadpassword,
-        'deletepassword': payload.get('deletepassword', ''),
-        'expire': payload.get('expire', DEFAULT_FILE_EXPIRATION),
-        'limit': payload.get('limit', None),
-        'chunks': payload.get('chunks', None),
+        'upload_key': upload_key,
+        'delete_key': delete_key,
+        'expires': expires,
+        'chunks': 0,
     }
 
-    write_properties_file(filepath, properties)
+    if 'limit' in payload:
+        properties.update({
+            'limit': payload['limit'],
+            'downloads': 0,
+        })
 
-    return jsonify({
-        'id': fileid,
-        'uploadpassword': uploadpassword,
-    })
+    write_properties_file(fileid, properties)
+
+    return jsonify({'id': fileid})
 
 
 def require_file_exists(f):
@@ -127,10 +140,9 @@ def require_uploadpassword(f):
     @wraps(f)
     def check_uploadpassword(*args, **kwargs):
         properties = read_properties_file(kwargs['id'])
-        payload = g.payload
         comparison = safe_str_cmp(
-            payload['uploadpassword'],
-            properties['uploadpassword'])
+            request.args.get('key'),
+            properties['upload_key'])
 
         if not comparison:
             raise Unauthorized()
@@ -147,9 +159,6 @@ def put_file_metadata(id):
         app.logger.error("Parsing of request failed")
         raise BadRequest()
 
-    metadata = payload.copy()
-    del metadata['uploadpassword']
-
     metadata_file = os.path.join(
         g.config['data_path'],
         id,
@@ -157,7 +166,7 @@ def put_file_metadata(id):
 
     app.logger.debug("Writing metadata to %s", metadata_file)
     with open(metadata_file, 'wb') as f:
-        json.dump(metadata, f)
+        json.dump(payload, f)
 
     return jsonify({})
 
@@ -173,7 +182,23 @@ def get_file_exists(id):
 @require_file_exists
 def get_file_info(id):
     '''Return public information about the file'''
-    return not_implemented()
+
+    properties = read_properties_file(id)
+
+    info = {
+        'chunks': properties['chunks'],
+        'size_total': properties['size_total'],
+        'complete': properties['complete'],
+        'expires': properties['expires'],
+    }
+
+    if 'limit' in properties:
+        info.update({
+            'limit': properties['limit'],
+            'downloads': properties.get('downloads', 0),
+        })
+
+    return jsonify(info)
 
 
 @app.route('/api/file/<id>/metadata', methods=['GET'])
@@ -187,8 +212,8 @@ def get_file(id, index):
     return not_implemented()
 
 
-@app.route('/api/file/<id>/<deletepassword>', methods=['DELETE'])
-def delete_file(id, deletepassword):
+@app.route('/api/file/<id>', methods=['DELETE'])
+def delete_file(id):
     return not_implemented()
 
 
