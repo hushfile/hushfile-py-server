@@ -1,5 +1,5 @@
 from base64 import b64encode
-from flask import Flask, request, jsonify
+from flask import Flask, g, request, jsonify
 import json
 import os
 import tempfile
@@ -58,8 +58,10 @@ def write_properties_file(filepath, properties):
         f.write(json.dumps(properties))
 
 
-def parse_request_data(request):
-    return request.get_json() or request.form
+@app.before_request
+def parse_request_data():
+    if request.method in ['POST', 'PUT']:
+        g.payload = request.get_json() or request.form
 
 
 def not_implemented():
@@ -68,7 +70,7 @@ def not_implemented():
 
 @app.route('/api/file', methods=['POST'])
 def post_file():
-    payload = parse_request_data(request)
+    payload = g.payload
 
     fileid, filepath = create_new_file(DATA_PATH)
 
@@ -100,7 +102,7 @@ def require_uploadpassword(f):
         assert_file_exists(kwargs['id'])
 
         properties = read_properties_file(kwargs['id'])
-        payload = parse_request_data(request)
+        payload = g.payload
         comparison = safe_str_cmp(
             payload['uploadpassword'],
             properties['uploadpassword'])
@@ -114,7 +116,7 @@ def require_uploadpassword(f):
 @app.route('/api/file/<string:id>/metadata', methods=['PUT'])
 @require_uploadpassword
 def put_file_metadata(id):
-    payload = parse_request_data(request)
+    payload = g.payload
 
     if 'metadata' not in payload:
         app.logger.error("Parsing of request failed")
