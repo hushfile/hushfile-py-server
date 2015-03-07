@@ -93,11 +93,13 @@ class TestMain(unittest.TestCase):
         resp = self.app.put('/api/file/fewfsadgsg/metadata', data={})
         self.status_code(resp, 404)
 
-    def test_post_file_no_meta(self):
+    def test_put_file_no_meta(self):
         with patch('main.DATA_PATH', self.tmp_dir):
-            self.setup_mockfile('1234')
+            filepath = self.setup_mockfile('1234')
             payload = {
                 'uploadpassword': '1234',
             }
             resp = self.app.put('/api/file/1234/metadata', data=payload)
             self.assertEqual(resp.status_code, 400)
+            metadata_file = os.path.join(filepath, 'metadata.json')
+            assert not os.path.exists(metadata_file)
