@@ -1,5 +1,6 @@
 from base64 import b64encode
 from flask import Flask, g, request, jsonify
+from functools import wraps
 import json
 import os
 import tempfile
@@ -91,16 +92,21 @@ def post_file():
     })
 
 
-def assert_file_exists(file_id):
-    if not os.path.isdir(os.path.join(DATA_PATH, file_id)):
-        raise NotFound("The requested file could not be found")
-    app.logger.info("Found file %s", file_id)
+def require_file_exists(f):
+    @wraps(f)
+    def check_file_exists(*args, **kwargs):
+        dirname = os.path.join(DATA_PATH, kwargs['id'])
+        if not os.path.isdir(dirname):
+            raise NotFound("The requested file could not be found")
+        app.logger.info("Found file %s", kwargs['id'])
+        return f(*args, **kwargs)
+    return check_file_exists
 
 
 def require_uploadpassword(f):
+    @require_file_exists
+    @wraps(f)
     def check_uploadpassword(*args, **kwargs):
-        assert_file_exists(kwargs['id'])
-
         properties = read_properties_file(kwargs['id'])
         payload = g.payload
         comparison = safe_str_cmp(
@@ -135,14 +141,14 @@ def put_file_metadata(id):
 
 
 @app.route('/api/file/<id>/exists', methods=['GET'])
+@require_file_exists
 def get_file_exists(id):
-    assert_file_exists(id)
     return ""
 
 
 @app.route('/api/file/<id>/info', methods=['GET'])
+@require_file_exists
 def get_file_info(id):
-    assert_file_exists(id)
     '''Return public information about the file'''
     return not_implemented()
 
