@@ -110,6 +110,8 @@ def post_file():
 
 
 def require_file_exists(f):
+    app.logger.debug("require_file_exists invoked")
+
     @wraps(f)
     def check_file_exists(*args, **kwargs):
         dirname = os.path.join(g.config['data_path'], kwargs['id'])
@@ -163,7 +165,8 @@ def put_file_metadata(id):
 @app.route('/api/file/<id>/exists', methods=['GET'])
 @require_file_exists
 def get_file_exists(id):
-    return ""
+    app.logger.debug("get_file_exists endpoint invoked")
+    return jsonify({})
 
 
 @app.route('/api/file/<id>/info', methods=['GET'])
