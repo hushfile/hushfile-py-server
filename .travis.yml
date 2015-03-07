@@ -7,7 +7,7 @@ install:
     - pip install coveralls
 script:
     - ./test
-    - coverage run `which nosetests`
+    - coverage run --source=main `which nosetests`
 after_success:
     - coveralls
 notifications:
