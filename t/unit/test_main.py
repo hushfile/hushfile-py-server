@@ -22,10 +22,18 @@ def status_code(resp, expect):
     assert_equal(resp.status_code, expect)
 
 
+class MockContext():
+    def __init__(self):
+        self.config = {
+            'data_path': tmpdir,
+        }
+
+
 def setup_module():
     global app, tmpdir
     tmpdir = tempfile.mkdtemp()
     main.app.config['DEBUG'] = True
+    main.app.app_ctx_globals_class = MockContext
     app = main.app.test_client()
 
 
@@ -50,19 +58,18 @@ def api_upload_success(wrap_func=lambda x: x, headers={}):
     }
 
     with patch('main.generate_password') as p:
-        with patch('main.DATA_PATH', tmpdir):
-            p.return_value = '1234567890'
+        p.return_value = '1234567890'
 
-            resp = app.post(
-                '/api/file',
-                data=wrap_func(payload),
-                headers=headers)
-            status_code(resp, 200)
-            data = json.loads(resp.get_data())
+        resp = app.post(
+            '/api/file',
+            data=wrap_func(payload),
+            headers=headers)
+        status_code(resp, 200)
+        data = json.loads(resp.get_data())
 
-            assert os.path.isdir(os.path.join(tmpdir, data['id']))
+        assert os.path.isdir(os.path.join(tmpdir, data['id']))
 
-            # TODO: Test file contents
+        # TODO: Test file contents
 
 
 def test_post_file_json():
@@ -74,29 +81,28 @@ def test_post_file_multipart():
 
 
 def test_get_serverinfo():
-    config_location = os.path.join(files, 'config.json')
-
-    expected = json.load(open(config_location))
-    with patch('main.CONFIGURATION_LOCATION', config_location):
-        resp = app.get('/api/serverinfo')
+    resp = app.get('/api/serverinfo')
     status_code(resp, 200)
 
-    assert json.loads(resp.get_data()) == expected
+    serverinfo = resp.get_data()
+
+    assert 'max_retention_hours' in serverinfo
+    assert 'max_filesize_bytes' in serverinfo
+    assert 'max_chunksize_bytes' in serverinfo
 
 
 def test_put_metadata_success():
-    with patch('main.DATA_PATH', tmpdir):
-        filepath = setup_mockfile('foobar')
-        payload = {
-            'uploadpassword': '1234',
-            'metadata': 'encryptedtexthere'
-        }
-        resp = app.put('/api/file/foobar/metadata', data=payload)
-        status_code(resp, 200)
+    filepath = setup_mockfile('foobar')
+    payload = {
+        'uploadpassword': '1234',
+        'metadata': 'encryptedtexthere'
+    }
+    resp = app.put('/api/file/foobar/metadata', data=payload)
+    status_code(resp, 200)
 
-        with open(os.path.join(filepath, 'metadata.json')) as f:
-            j = json.load(f)
-            assert 'uploadpassword' not in j
+    with open(os.path.join(filepath, 'metadata.json')) as f:
+        j = json.load(f)
+        assert 'uploadpassword' not in j
 
 
 def test_put_metadata_not_exists():
@@ -105,27 +111,25 @@ def test_put_metadata_not_exists():
 
 
 def test_put_file_no_meta():
-    with patch('main.DATA_PATH', tmpdir):
-        filepath = setup_mockfile('1234')
-        payload = {
-            'uploadpassword': '1234',
-        }
-        resp = app.put('/api/file/1234/metadata', data=payload)
-        status_code(resp, 400)
-        metadata_file = os.path.join(filepath, 'metadata.json')
-        assert not os.path.exists(metadata_file)
+    filepath = setup_mockfile('1234')
+    payload = {
+        'uploadpassword': '1234',
+    }
+    resp = app.put('/api/file/1234/metadata', data=payload)
+    status_code(resp, 400)
+    metadata_file = os.path.join(filepath, 'metadata.json')
+    assert not os.path.exists(metadata_file)
 
 
 def test_put_file_unauthorized():
-    with patch('main.DATA_PATH', tmpdir):
-        filepath = setup_mockfile('weggkgelg')
-        payload = {
-            'uploadpassword': '2wefegf',
-            'metadata': 'encryptedtexthere'
-        }
+    filepath = setup_mockfile('weggkgelg')
+    payload = {
+        'uploadpassword': '2wefegf',
+        'metadata': 'encryptedtexthere'
+    }
 
-        resp = app.put('/api/file/weggkgelg/metadata', data=payload)
-        status_code(resp, 401)
+    resp = app.put('/api/file/weggkgelg/metadata', data=payload)
+    status_code(resp, 401)
 
-        metadata_file = os.path.join(filepath, 'metadata.json')
-        assert not os.path.exists(metadata_file)
+    metadata_file = os.path.join(filepath, 'metadata.json')
+    assert not os.path.exists(metadata_file)
