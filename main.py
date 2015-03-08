@@ -1,14 +1,18 @@
 from base64 import b64encode
 from datetime import datetime, timedelta
-from flask import Flask, g, request, jsonify
+from flask import Flask, g, make_response, request, jsonify
 from functools import wraps
 import json
 import os
+import shutil
 import tempfile
 import time
-from werkzeug.exceptions import (BadRequest,
-                                 NotFound,
-                                 Unauthorized)
+from werkzeug.exceptions import (
+    BadRequest,
+    Conflict,
+    NotFound,
+    RequestedRangeNotSatisfiable,
+    Unauthorized)
 from werkzeug.security import safe_str_cmp
 
 
@@ -122,13 +126,22 @@ def post_file():
     return jsonify({'id': fileid})
 
 
+def file_exists(file_id):
+    file = os.path.join(g.config['data_path'], file_id)
+    return os.path.exists(file) and os.path.isdir(file)
+
+
+def chunk_exists(file_id, index):
+    chunk_file = os.path.join(g.config['data_path'], file_id, index)
+    return os.path.exists(chunk_file)
+
+
 def require_file_exists(f):
     app.logger.debug("require_file_exists invoked")
 
     @wraps(f)
     def check_file_exists(*args, **kwargs):
-        dirname = os.path.join(g.config['data_path'], kwargs['id'])
-        if not os.path.isdir(dirname):
+        if not file_exists(kwargs['id']):
             raise NotFound("The requested file could not be found")
         app.logger.info("Found file %s", kwargs['id'])
         return f(*args, **kwargs)
@@ -168,14 +181,13 @@ def put_file_metadata(id):
     with open(metadata_file, 'wb') as f:
         json.dump(payload, f)
 
-    return jsonify({})
+    return jsonify({'id': id})
 
 
 @app.route('/api/file/<id>/exists', methods=['GET'])
 @require_file_exists
 def get_file_exists(id):
-    app.logger.debug("get_file_exists endpoint invoked")
-    return jsonify({})
+    return jsonify({'id': id})
 
 
 @app.route('/api/file/<id>/info', methods=['GET'])
@@ -186,6 +198,7 @@ def get_file_info(id):
     properties = read_properties_file(id)
 
     info = {
+        'id': id,
         'chunks': properties['chunks'],
         'size_total': properties['size_total'],
         'complete': properties['complete'],
@@ -207,17 +220,80 @@ def get_file_metadata(id):
     return not_implemented()
 
 
+@app.route('/api/file/<id>/<index>', methods=['PUT'])
+@require_uploadpassword
+def put_file(id, index):
+    file = request.files['file']
+    chunk_file = os.path.join(g.config['data_path'], id, '%d.chunk' % index)
+
+    properties = read_properties_file(id)
+
+    if chunk_exists(id, index):
+        existing_size = os.path.getsize(chunk_file)
+        properties['total_size'] -= existing_size
+        file.save(chunk_file)
+        properties['total_size'] += os.path.getsize(chunk_file)
+    else:
+        file.save(chunk_file)
+        properties['chunks'] += 1
+
+    write_properties_file(id, properties)
+
+    return jsonify({
+        'id': id,
+        'index': index,
+        'size': os.path.getsize(chunk_file)
+    })
+
+
 @app.route('/api/file/<id>/<index>', methods=['GET'])
+@require_file_exists
 def get_file(id, index):
-    return not_implemented()
+    chunk_file = os.path.join(g.config['data_path'], id, index)
+
+    if not chunk_exists(chunk_file):
+        raise RequestedRangeNotSatisfiable()
+
+    with open(chunk_file) as f:
+        return make_response(f.read())
+
+
+def remove_file(id):
+    shutil.rmtree(os.path.join(g.config['data_path'], id))
+    return jsonify({
+        'id': id
+    })
+
+
+@app.route('/api/file/<string:id>/complete', methods=['DELETE', 'POST'])
+@require_uploadpassword
+def post_file_complete(id):
+    properties = read_properties_file(id)
+
+    cmp_chunks = g.payload.get('chunks') == properties['chunks']
+    if request.method == 'POST' and not cmp_chunks:
+        raise RequestedRangeNotSatisfiable()
+
+    if properties['complete']:
+        raise Conflict()
+
+    if 'DELETE' == request.method:
+        delete_file(id)
+    else:
+        properties['complete'] = True
+        write_properties_file(id)
 
 
 @app.route('/api/file/<id>', methods=['DELETE'])
+@require_file_exists
 def delete_file(id):
-    return not_implemented()
+    properties = read_properties_file(id)
+    if not safe_str_cmp(request.args.get('key'), properties['delete_key']):
+        raise Unauthorized()
+    remove_file(id)
 
 
-@app.route('/api/serverinfo', methods=['GET'])
+@app.route('/api/info', methods=['GET'])
 def get_serverinfo():
     c = g.config
     return jsonify({

@@ -17,7 +17,7 @@ def teardown_module():
 def test_get_success():
     with patch('main.os.path.isdir', lambda x: True):
         expect_response(
-            app.get('/api/file/42/exists'),
+            app.get('/api/file/singleton/exists'),
             payload={})
 
 

@@ -16,6 +16,7 @@ def test_success():
     expect_response(
         app.get('/api/file/singleton/info'),
         payload={
+            'id': 'singleton',
             'chunks': 1,
             'size_total': 473831,
             'complete': True,

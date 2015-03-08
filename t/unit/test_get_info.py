@@ -13,11 +13,11 @@ def teardown_module():
 
 
 def test_get_serverinfo():
-    resp = app.get('/api/serverinfo')
+    resp = app.get('/api/info')
     status_code(resp, 200)
 
-    serverinfo = resp.get_data()
+    info = resp.get_data()
 
-    assert 'max_retention_hours' in serverinfo
-    assert 'max_filesize_bytes' in serverinfo
-    assert 'max_chunksize_bytes' in serverinfo
+    assert 'max_retention_hours' in info
+    assert 'max_filesize_bytes' in info
+    assert 'max_chunksize_bytes' in info
