@@ -42,25 +42,6 @@ def generate_password(length=40):
     return b64encode(os.urandom(42))[:40]
 
 
-def create_new_file():
-    filepath = tempfile.mkdtemp(dir=g.config['data_path'])
-    fileid = os.path.basename(filepath)
-
-    app.logger.info("Creating new upload at %s" % filepath)
-
-    return fileid, filepath
-
-
-def read_metadata_file(file_id):
-    metadata_file = os.path.join(
-        g.config['data_path'],
-        file_id,
-        metadata_filename)
-
-    with open(metadata_file, 'rb') as f:
-        return json.load(f)
-
-
 def read_properties_file(file_id):
     properties_file = os.path.join(
         g.config['data_path'],
@@ -87,16 +68,12 @@ def parse_request_data():
         g.payload = request.get_json() or request.form
 
 
-def not_implemented():
-    return "Coming soon, to a browser near you."
-
-
 @app.route('/api/file', methods=['POST'])
 def post_file():
     payload = g.payload
 
-    fileid, filepath = create_new_file()
-
+    filepath = tempfile.mkdtemp(dir=g.config['data_path'])
+    file_id = os.path.basename(filepath)
     upload_key = generate_password()
     delete_key = generate_password()
 
@@ -121,9 +98,9 @@ def post_file():
             'downloads': 0,
         })
 
-    write_properties_file(fileid, properties)
+    write_properties_file(file_id, properties)
 
-    return jsonify({'id': fileid})
+    return jsonify({'id': file_id})
 
 
 def file_exists(file_id):
@@ -168,18 +145,21 @@ def require_uploadpassword(f):
 def put_file_metadata(id):
     payload = g.payload
 
-    if 'metadata' not in payload:
-        app.logger.error("Parsing of request failed")
-        raise BadRequest()
-
     metadata_file = os.path.join(
         g.config['data_path'],
         id,
         metadata_filename)
 
+    metadata = payload.copy()
+
+    uploaded_file = request.files['metadata']
+    if uploaded_file:
+        metadata.update({
+            'metadata': uploaded_file.read()
+        })
     app.logger.debug("Writing metadata to %s", metadata_file)
     with open(metadata_file, 'wb') as f:
-        json.dump(payload, f)
+        json.dump(metadata, f)
 
     return jsonify({'id': id})
 
@@ -215,9 +195,12 @@ def get_file_info(id):
 
 
 @app.route('/api/file/<id>/metadata', methods=['GET'])
+@require_file_exists
 def get_file_metadata(id):
     '''Return the metadata file along with its mac'''
-    return not_implemented()
+    metadata_file = os.path.join(g.config)
+    with open(metadata_file) as f:
+        return jsonify(f.read())
 
 
 @app.route('/api/file/<id>/<index>', methods=['PUT'])
