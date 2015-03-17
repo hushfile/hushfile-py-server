@@ -74,8 +74,7 @@ def post_file():
 
     filepath = tempfile.mkdtemp(dir=g.config['data_path'])
     file_id = os.path.basename(filepath)
-    upload_key = generate_password()
-    delete_key = generate_password()
+    key = generate_password()
 
     expires = payload.get('expires', None)
 
@@ -86,8 +85,7 @@ def post_file():
         expires = int(time.mktime(dt_expires.timetuple()))
 
     properties = {
-        'upload_key': upload_key,
-        'delete_key': delete_key,
+        'key': key,
         'expires': expires,
         'chunks': 0,
     }
@@ -100,7 +98,10 @@ def post_file():
 
     write_properties_file(file_id, properties)
 
-    return jsonify({'id': file_id})
+    return jsonify({
+        'id': file_id,
+        'key': key,
+    })
 
 
 def file_exists(file_id):
