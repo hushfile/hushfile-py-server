@@ -126,6 +126,28 @@ def require_file_exists(f):
     return check_file_exists
 
 
+@app.route('/api/file/{string:id}', methods=['PUT'])
+@require_file_exists
+def put_file(id):
+    payload = g.payload
+
+    properties = read_properties_file(id)
+
+    limit = payload.get('limit', None)
+    if limit:
+        properties['limit'] = limit
+    elif 'limit' in properties:
+        del properties['limit']
+
+    expires = payload.get('expires', None)
+
+    if expires:
+        properties['expires'] = expires
+
+    write_properties_file(id, properties)
+    return jsonify({})
+
+
 def require_uploadpassword(f):
     @require_file_exists
     @wraps(f)
@@ -206,7 +228,7 @@ def get_file_metadata(id):
 
 @app.route('/api/file/<id>/<index>', methods=['PUT'])
 @require_uploadpassword
-def put_file(id, index):
+def put_chunk(id, index):
     file = request.files['file']
     chunk_file = os.path.join(g.config['data_path'], id, '%d.chunk' % index)
 
