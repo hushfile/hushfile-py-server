@@ -2,8 +2,8 @@ from __future__ import division, print_function, unicode_literals
 
 from mock import patch
 
-from t.unit import app, default_setup_module, default_teardown_module
-from t.utils import expect_not_found, expect_response
+from testing.unit import app, default_setup_module, default_teardown_module
+from testing.tools import expect_not_found, expect_response
 
 
 def setup_module():

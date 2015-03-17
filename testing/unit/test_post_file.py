@@ -1,9 +1,8 @@
 import json
-from mock import patch
 import os
 
-from t.unit import app, default_setup_module, default_teardown_module
-from t.utils import status_code
+from testing.unit import app, default_setup_module, default_teardown_module
+from testing.tools import status_code
 
 json_header = {
     'Content-type': 'application/json',

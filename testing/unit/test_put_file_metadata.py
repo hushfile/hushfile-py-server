@@ -3,8 +3,8 @@ from __future__ import division, print_function, unicode_literals
 import json
 import os
 
-from t.unit import app, default_setup_module, default_teardown_module
-from t.utils import assert_equal, status_code
+from testing.unit import app, default_setup_module, default_teardown_module
+from testing.tools import assert_equal, status_code
 
 here = os.path.abspath(os.path.dirname(__file__))
 files = os.path.join(here, 'files')

@@ -1,7 +1,7 @@
 from __future__ import division, print_function, unicode_literals
 
-from t.unit import app, default_setup_module, default_teardown_module
-from t.utils import status_code
+from testing.unit import app, default_setup_module, default_teardown_module
+from testing.tools import status_code
 
 
 def setup_module():
